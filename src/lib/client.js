@@ -47,35 +47,6 @@ export class VisaHttpClient {
       .then(data => data.map(item => item.date));
   }
 
-  async checkAvailableTime(headers, scheduleId, facilityId, date) {
-    const url = `${this.baseUri}/schedule/${scheduleId}/appointment/times/${facilityId}.json?date=${date}&appointments[expedite]=false`;
-    
-    return this._jsonRequest(url, headers)
-      .then(data => data['business_times'][0] || data['available_times'][0]);
-  }
-
-  async book(headers, scheduleId, facilityId, date, time) {
-    const url = `${this.baseUri}/schedule/${scheduleId}/appointment`;
-
-    const bookingHeaders = await this._anonymousRequest(url, headers)
-      .then(response => this._extractHeaders(response));
-
-    const bookingData = {
-      'utf8': '✓',
-      'authenticity_token': bookingHeaders['X-CSRF-Token'],
-      'confirmed_limit_message': '1',
-      'use_consulate_appointment_capacity': 'true',
-      'appointments[consulate_appointment][facility_id]': facilityId,
-      'appointments[consulate_appointment][date]': date,
-      'appointments[consulate_appointment][time]': time,
-      'appointments[asc_appointment][facility_id]': '',
-      'appointments[asc_appointment][date]': '',
-      'appointments[asc_appointment][time]': ''
-    };
-
-    return this._submitFormWithRedirect(url, bookingHeaders, bookingData);
-  }
-
   // Private request methods
   async _anonymousRequest(url, headers = {}) {
     return fetch(url, {
@@ -108,18 +79,6 @@ export class VisaHttpClient {
       headers: {
         ...headers,
         "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"
-      },
-      body: new URLSearchParams(formData)
-    });
-  }
-
-  async _submitFormWithRedirect(url, headers = {}, formData = {}) {
-    return fetch(url, {
-      method: "POST",
-      redirect: "follow",
-      headers: {
-        ...headers,
-        'Content-Type': 'application/x-www-form-urlencoded'
       },
       body: new URLSearchParams(formData)
     });
