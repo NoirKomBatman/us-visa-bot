@@ -8,6 +8,9 @@ An automated bot that monitors US visa interview appointment slots and sends you
 - 🔔 Sends a Telegram message listing every earlier date it finds
 - 🧠 De-duplicates alerts — you're only pinged about newly-appeared dates, not the same slot every few seconds
 - 🎯 Optional minimum-date constraint
+- 🛡️ **Lockout protection** — backs off on auth failures and aborts before it can hammer your account into a lock
+- 🌐 Survives transient network drops, retrying indefinitely without counting them as failures
+- 🎲 Jittered poll cadence so requests don't look like clockwork
 - 📊 Detailed logging with timestamps
 - 🔐 Credentials and bot token via environment variables
 - 🚫 **Read-only** — the bot has no ability to book or change your appointment
@@ -61,6 +64,9 @@ Run the bot with your current appointment date:
 
 ```bash
 node src/index.js -c <current_date> [-m <min_date>]
+
+# or via npm
+npm start -- -c <current_date> [-m <min_date>]
 ```
 
 ### Command Line Arguments
@@ -96,11 +102,23 @@ The bot will:
 
 A date that stays available won't re-alert you every poll. If a date disappears and later reappears, you'll be alerted again.
 
+## Reliability & Lockout Protection
+
+The visa site throttles and can lock accounts that log in too aggressively, so the bot is deliberately cautious:
+
+- **Jittered cadence** — the `REFRESH_DELAY` between polls is varied by ±25%, so checks don't hit the server on a perfectly fixed schedule.
+- **Network errors are forgiven** — dropped sockets, timeouts, and DNS hiccups (`ECONNRESET`, `ETIMEDOUT`, `ENOTFOUND`, "socket hang up", etc.) retry indefinitely after a fixed 60s wait and do **not** count toward the failure limit.
+- **Auth/session errors back off exponentially** — 60s, 120s, 240s … capped at 30 minutes.
+- **Hard stop before a lockout** — after 5 consecutive login/session failures the bot aborts with exit code 1 rather than keep retrying. This usually means bad credentials or a throttled account; fix it and restart.
+
+Already-seen dates persist across automatic reconnects, so a re-login never re-spams you about slots you were already told about.
+
 ## Output Example
 
 ```
 [2026-06-17T10:30:00.000Z] Watching for appointments earlier than 2026-09-17
 [2026-06-17T10:30:00.000Z] Minimum acceptable date: 2026-06-01
+[2026-06-17T10:30:00.000Z] Initializing visa bot...
 [2026-06-17T10:30:01.000Z] Logging in
 [2026-06-17T10:30:03.000Z] found 4 earlier date(s): 2026-06-01, 2026-07-02, 2026-09-03, 2026-09-15
 [2026-06-17T10:30:03.000Z] Notifying about 4 new date(s): 2026-06-01, 2026-07-02, 2026-09-03, 2026-09-15
